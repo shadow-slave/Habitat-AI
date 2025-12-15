@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import {
   Building,
   User,
@@ -12,9 +13,34 @@ import {
   Loader,
   X,
   AlertCircle,
+  Search,
 } from "lucide-react";
-import axios from "axios";
 import { useAuth } from "../context/AuthContext";
+
+// --- Leaflet Imports ---
+import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
+// Fix for default Leaflet marker icons in React
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl:
+    "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
+  iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
+});
+
+// Helper component to update the Leaflet map view when coordinates change
+const MapUpdater = ({ lat, lng }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (lat && lng) {
+      map.setView([lat, lng], map.getZoom() < 14 ? 14 : map.getZoom());
+    }
+  }, [lat, lng, map]);
+  return null;
+};
+// --- End Leaflet Helpers ---
 
 const Admin = () => {
   const { user, loading: authLoading } = useAuth();
@@ -24,6 +50,8 @@ const Admin = () => {
   const [submitted, setSubmitted] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
   const [error, setError] = useState("");
+  // 'idle', 'searching', 'success', 'error'
+  const [geocodingStatus, setGeocodingStatus] = useState(null);
 
   const [imageFiles, setImageFiles] = useState([]);
   const [previewImages, setPreviewImages] = useState([]);
@@ -63,6 +91,9 @@ const Admin = () => {
     { day: "Sunday", breakfast: "", lunch: "", dinner: "" },
   ]);
 
+  // Ref for the Debounce Timer
+  const geocodeTimerRef = useRef(null);
+
   // Auth guard
   useEffect(() => {
     if (!authLoading && !user) navigate("/login");
@@ -70,11 +101,74 @@ const Admin = () => {
 
   if (authLoading || !user) return null;
 
-  const handleChange = useCallback((e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  // --- MISSING HELPER FUNCTION DEFINED HERE ---
+  const toggleArrayValue = (value, setter, state) => {
+    setter(
+      state.includes(value)
+        ? state.filter((v) => v !== value)
+        : [...state, value]
+    );
+  };
+  // --- END HELPER ---
+
+  // --- NOMINATIM GEOCODING LOGIC ---
+  const geocodeAddress = useCallback(async (address) => {
+    if (!address.trim() || address.length < 5) {
+      setGeocodingStatus("idle");
+      return;
+    }
+
+    setGeocodingStatus("searching");
+
+    // Free Nominatim API (OpenStreetMap)
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+      address
+    )}&format=json&limit=1&countrycodes=in`;
+
+    try {
+      const response = await axios.get(url);
+
+      if (response.data && response.data.length > 0) {
+        const result = response.data[0];
+        const lat = parseFloat(result.lat).toFixed(6);
+        const lng = parseFloat(result.lon).toFixed(6);
+
+        setFormData((prev) => ({
+          ...prev,
+          latitude: lat,
+          longitude: lng,
+        }));
+        setGeocodingStatus("success");
+      } else {
+        setGeocodingStatus("error");
+        setFormData((prev) => ({ ...prev, latitude: "", longitude: "" }));
+      }
+    } catch (e) {
+      console.error("Geocoding failed:", e);
+      setGeocodingStatus("error");
+    }
   }, []);
 
+  const handleChange = useCallback(
+    (e) => {
+      const { name, value } = e.target;
+      setFormData((prev) => ({ ...prev, [name]: value }));
+
+      if (name === "street") {
+        if (geocodeTimerRef.current) {
+          clearTimeout(geocodeTimerRef.current);
+        }
+
+        // Debounce geocoding for 500ms
+        geocodeTimerRef.current = setTimeout(() => {
+          geocodeAddress(value);
+        }, 500);
+      }
+    },
+    [geocodeAddress]
+  );
+
+  // --- EXISTING GPS FALLBACK LOGIC ---
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
       setError("Geolocation not supported by this browser.");
@@ -91,11 +185,13 @@ const Admin = () => {
           longitude: pos.coords.longitude.toFixed(6),
         }));
         setLocationLoading(false);
+        setGeocodingStatus("success");
       },
       (err) => {
         console.error("Geolocation error:", err);
         setError("Location access denied. Please enter manually.");
         setLocationLoading(false);
+        setGeocodingStatus("idle");
       }
     );
   };
@@ -125,27 +221,13 @@ const Admin = () => {
     );
   };
 
-  const toggleArrayValue = (value, setter, state) => {
-    setter(
-      state.includes(value)
-        ? state.filter((v) => v !== value)
-        : [...state, value]
-    );
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    // Basic validation
-    if (!formData.name.trim()) {
-      setError("Property name is required.");
-      setLoading(false);
-      return;
-    }
-    if (!formData.ownerName.trim()) {
-      setError("Owner name is required.");
+    if (!formData.name.trim() || !formData.ownerName.trim()) {
+      setError("Property name and owner name are required.");
       setLoading(false);
       return;
     }
@@ -156,7 +238,7 @@ const Admin = () => {
     }
     if (!formData.latitude || !formData.longitude) {
       setError(
-        "Location is required. Use 'Detect Location' or enter manually."
+        "Location coordinates are missing. Please use the address search or GPS fallback."
       );
       setLoading(false);
       return;
@@ -164,7 +246,6 @@ const Admin = () => {
 
     try {
       const data = new FormData();
-
       Object.entries(formData).forEach(([k, v]) => data.append(k, v));
       imageFiles.forEach((f) => data.append("images", f));
 
@@ -175,7 +256,7 @@ const Admin = () => {
           return;
         }
         data.append("availableRoomTypes", JSON.stringify(roomTypes));
-        // sharingTypes is optional for now
+        data.append("sharingTypes", JSON.stringify(sharingTypes));
       }
 
       if (formData.type === "Mess") {
@@ -195,7 +276,7 @@ const Admin = () => {
       }
     } catch (err) {
       console.error("Submission error:", err);
-      setError("Failed to create venue. Please try again.");
+      setError(err.response?.data?.message || "Failed to create venue.");
     } finally {
       setLoading(false);
     }
@@ -208,10 +289,11 @@ const Admin = () => {
           <CheckCircle size={64} className="text-green-600 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Success!</h2>
           <p className="text-gray-600 mb-6">
-            Your property has been submitted successfully.
+            Your property has been submitted successfully and is awaiting admin
+            approval.
           </p>
           <button
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate("/")}
             className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition duration-200"
           >
             Go to Dashboard
@@ -220,6 +302,12 @@ const Admin = () => {
       </div>
     );
   }
+
+  // Set default coordinates for map if none are present (e.g., center of India or MSRIT)
+  const defaultLat = 13.0306;
+  const defaultLng = 77.5649;
+  const currentLat = formData.latitude || defaultLat;
+  const currentLng = formData.longitude || defaultLng;
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
@@ -387,24 +475,6 @@ const Admin = () => {
 
               <div className="md:col-span-2">
                 <label
-                  htmlFor="street"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Address
-                </label>
-                <input
-                  id="street"
-                  name="street"
-                  type="text"
-                  value={formData.street}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                  placeholder="Street, Landmark, City"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label
                   htmlFor="description"
                   className="block text-sm font-medium text-gray-700 mb-1"
                 >
@@ -423,14 +493,96 @@ const Admin = () => {
             </div>
           </section>
 
-          {/* Section: Location */}
+          {/* Section: Location (WITH MAP) */}
           <section className="p-6 sm:p-8 border-b border-gray-200">
             <h2 className="text-xl font-semibold text-gray-800 flex items-center mb-6">
               <MapPin className="mr-2 text-green-600" size={24} />
-              Location
+              Location & Coordinates
             </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Address Search Field */}
+            <div className="mb-4">
+              <label
+                htmlFor="street"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Address for Geocoding *
+              </label>
+              <div className="relative">
+                <input
+                  id="street"
+                  name="street"
+                  type="text"
+                  value={formData.street}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
+                  placeholder="Start typing the full address (e.g., 1st Main Road, Gokula Extension, Bengaluru)"
+                  required
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-5 w-5 text-gray-400" />
+                </div>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                Type the address and pause. Coordinates will be auto-calculated.
+              </p>
+            </div>
+
+            {/* Map Visualization */}
+            <div className="mb-6 h-80 w-full rounded-lg shadow-inner overflow-hidden border border-gray-300">
+              <MapContainer
+                center={[currentLat, currentLng]}
+                zoom={14}
+                scrollWheelZoom={false}
+                style={{ height: "100%", width: "100%" }}
+                key={`${currentLat}-${currentLng}`} // Re-render if coords change
+              >
+                <TileLayer
+                  attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                {formData.latitude && formData.longitude && (
+                  <>
+                    <Marker position={[currentLat, currentLng]} />
+                    <MapUpdater lat={currentLat} lng={currentLng} />
+                  </>
+                )}
+              </MapContainer>
+            </div>
+            {/* End Map */}
+
+            {/* Coordinates Display & GPS Fallback */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-green-50 p-4 rounded-lg border border-green-200">
+              {/* Geocoding Status Indicator */}
+              <div className="flex flex-col justify-center">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Status
+                </label>
+                <span
+                  className={`px-3 py-2 text-xs font-bold rounded-lg flex items-center ${
+                    geocodingStatus === "success"
+                      ? "bg-green-200 text-green-800"
+                      : geocodingStatus === "searching"
+                      ? "bg-yellow-200 text-yellow-800"
+                      : geocodingStatus === "error"
+                      ? "bg-red-200 text-red-800"
+                      : "bg-gray-200 text-gray-700"
+                  }`}
+                >
+                  {geocodingStatus === "searching" && (
+                    <Loader className="animate-spin h-3 w-3 mr-1" />
+                  )}
+                  {geocodingStatus === "searching"
+                    ? "Searching..."
+                    : geocodingStatus === "success"
+                    ? "Address Found"
+                    : geocodingStatus === "error"
+                    ? "Address Not Found"
+                    : "Awaiting Address"}
+                </span>
+              </div>
+
+              {/* Latitude */}
               <div>
                 <label
                   htmlFor="latitude"
@@ -438,25 +590,18 @@ const Admin = () => {
                 >
                   Latitude
                 </label>
-                <div className="relative">
-                  <input
-                    id="latitude"
-                    name="latitude"
-                    type="text"
-                    value={formData.latitude}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
-                    placeholder="e.g., 12.9716"
-                    readOnly={locationLoading}
-                  />
-                  {locationLoading && (
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                      <Loader className="animate-spin h-5 w-5 text-gray-400" />
-                    </div>
-                  )}
-                </div>
+                <input
+                  id="latitude"
+                  name="latitude"
+                  type="text"
+                  value={formData.latitude}
+                  readOnly
+                  className="w-full px-4 py-3 border border-green-300 rounded-lg bg-white/70 text-gray-700"
+                  placeholder="Auto-filled"
+                />
               </div>
 
+              {/* Longitude */}
               <div>
                 <label
                   htmlFor="longitude"
@@ -469,34 +614,34 @@ const Admin = () => {
                   name="longitude"
                   type="text"
                   value={formData.longitude}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
-                  placeholder="e.g., 77.5946"
-                  readOnly={locationLoading}
+                  readOnly
+                  className="w-full px-4 py-3 border border-green-300 rounded-lg bg-white/70 text-gray-700"
+                  placeholder="Auto-filled"
                 />
               </div>
-
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  onClick={handleGetLocation}
-                  disabled={locationLoading}
-                  className={`w-full flex items-center justify-center px-4 py-3 rounded-lg font-medium transition ${
-                    locationLoading
-                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      : "bg-green-600 hover:bg-green-700 text-white"
-                  }`}
-                >
-                  <Crosshair className="mr-2 h-5 w-5" />
-                  {locationLoading ? "Detecting..." : "Detect Location"}
-                </button>
-              </div>
             </div>
-            <p className="mt-2 text-xs text-gray-500">
-              Allow location access for automatic detection, or enter
-              coordinates manually.
-            </p>
+
+            {/* GPS Fallback */}
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                onClick={handleGetLocation}
+                disabled={locationLoading}
+                className={`flex items-center mx-auto justify-center px-4 py-2.5 rounded-lg font-medium text-sm transition ${
+                  locationLoading
+                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-md"
+                }`}
+              >
+                <Crosshair className="mr-2 h-5 w-5" />
+                {locationLoading
+                  ? "Detecting..."
+                  : "Use Current GPS Location (Fallback)"}
+              </button>
+            </div>
           </section>
+
+          {/* ... (Images, PG, Mess sections remain the same) ... */}
 
           {/* Section: Images */}
           <section className="p-6 sm:p-8 border-b border-gray-200">

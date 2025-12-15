@@ -25,6 +25,7 @@ import Register from "./pages/Register";
 import Admin from "./pages/Admin";
 import SuperAdmin from "./pages/SuperAdmin";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import VenueComparison from "./pages/VenueComparison";
 
 // Helper Link Component (Desktop)
 const NavLink = ({ to, icon, label }) => {
@@ -258,6 +259,7 @@ const MainContent = () => {
             <Route path="/register" element={<Register />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/super-admin" element={<SuperAdmin />} />
+            <Route path="/compare/:id" element={<VenueComparison />} />{" "}
           </Routes>
         )}
       </div>

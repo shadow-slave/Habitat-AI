@@ -403,6 +403,12 @@ const VenueDetails = () => {
             </div>
           )}
 
+          <Link to={`/compare/${venue._id}`}>
+            <button className="w-full bg-indigo-50 border border-indigo-200 text-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-100 transition mt-4">
+              Compare Nearby {venue.type}s
+            </button>
+          </Link>
+
           {/* Reviews List */}
           <div className="space-y-6">
             <h3 className="text-2xl font-bold text-gray-900 flex items-center">
