@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom"; // Import Link for redirection
+import { Link } from "react-router-dom";
 import {
   Building,
   User,
@@ -9,15 +9,16 @@ import {
   Plus,
   LayoutGrid,
   Lock,
-  ShieldAlert,
+  X,
 } from "lucide-react";
 
 const Admin = () => {
-  // 1. AUTH CHECK: Grab user from storage
   const user = JSON.parse(localStorage.getItem("user"));
-
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  // State for Images
+  const [images, setImages] = useState([]); // Stores the preview URLs
 
   const [formData, setFormData] = useState({
     name: "",
@@ -33,6 +34,20 @@ const Admin = () => {
   const handleChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
 
+  // --- NEW: HANDLE MULTIPLE IMAGE UPLOAD ---
+  const handleImageUpload = (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+      // Create temporary URLs for preview
+      const newImageUrls = files.map((file) => URL.createObjectURL(file));
+      setImages((prev) => [...prev, ...newImageUrls]);
+    }
+  };
+
+  const removeImage = (index) => {
+    setImages(images.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     setLoading(true);
@@ -42,7 +57,7 @@ const Admin = () => {
     }, 2000);
   };
 
-  // --- SCENARIO 1: USER NOT LOGGED IN ---
+  // 1. AUTH CHECK
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -55,29 +70,19 @@ const Admin = () => {
           </h2>
           <p className="text-gray-500 text-sm mb-6">
             You must be logged in to register a property on the Habitat-AI
-            network. This ensures accountability and trust.
+            network.
           </p>
-
           <Link to="/login">
-            <button className="w-full bg-gray-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-black transition shadow-lg transform hover:-translate-y-0.5">
+            <button className="w-full bg-gray-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-black transition shadow-lg">
               Login to Continue
             </button>
           </Link>
-
-          <div className="mt-6 pt-6 border-t border-gray-100">
-            <p className="text-xs text-gray-400">
-              Don't have an account?{" "}
-              <Link to="/register" className="text-blue-600 hover:underline">
-                Register here
-              </Link>
-            </p>
-          </div>
         </div>
       </div>
     );
   }
 
-  // --- SCENARIO 2: SUBMITTED SUCCESS ---
+  // 2. SUCCESS SCREEN
   if (submitted) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -90,12 +95,12 @@ const Admin = () => {
           </h2>
           <p className="text-gray-500 mb-8">
             "{formData.name}" has been sent to the Admin Panel for verification.
-            You will be notified once it goes live.
           </p>
           <button
             onClick={() => {
               setSubmitted(false);
               setFormData({ ...formData, name: "" });
+              setImages([]);
             }}
             className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition w-full"
           >
@@ -106,11 +111,10 @@ const Admin = () => {
     );
   }
 
-  // --- SCENARIO 3: MAIN FORM (LOGGED IN) ---
+  // 3. MAIN FORM
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
         <div className="mb-10 text-center">
           <h1 className="text-3xl font-extrabold text-gray-900 flex items-center justify-center">
             <LayoutGrid className="mr-3 text-blue-600" /> Property Manager
@@ -159,7 +163,6 @@ const Admin = () => {
                 </select>
               </div>
             </div>
-
             <div className="mt-6">
               <label className="block text-sm font-bold text-gray-700 mb-2">
                 Description
@@ -168,7 +171,7 @@ const Admin = () => {
                 name="description"
                 rows="3"
                 className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition"
-                placeholder="Describe amenities, distance from college, etc..."
+                placeholder="Describe amenities..."
                 onChange={handleChange}
               ></textarea>
             </div>
@@ -256,28 +259,58 @@ const Admin = () => {
                 />
               </div>
 
-              {/* Fake Image Upload */}
-              <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition group">
-                <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                  <ImageIcon size={24} />
+              {/* --- IMAGE UPLOAD AREA --- */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Upload Photos
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  {images.map((img, idx) => (
+                    <div
+                      key={idx}
+                      className="relative aspect-square rounded-xl overflow-hidden border border-gray-200 group"
+                    >
+                      <img
+                        src={img}
+                        alt="preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeImage(idx)}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Upload Button */}
+                  <label className="border-2 border-dashed border-gray-300 rounded-xl aspect-square flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition text-gray-400 hover:text-blue-500">
+                    <ImageIcon size={24} className="mb-2" />
+                    <span className="text-xs font-bold">Add Photos</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageUpload}
+                    />
+                  </label>
                 </div>
-                <p className="text-sm font-bold text-gray-700">
-                  Click to upload property photos
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  SVG, PNG, JPG or GIF (Max. 5MB)
+                <p className="text-xs text-gray-400">
+                  Supported: JPG, PNG. You can select multiple files.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Footer */}
           <div className="p-6 bg-gray-50 border-t border-gray-200 flex justify-end">
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || images.length === 0}
               className={`px-8 py-3 rounded-xl font-bold text-white shadow-lg flex items-center ${
-                loading
+                loading || images.length === 0
                   ? "bg-gray-400 cursor-not-allowed"
                   : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transform hover:-translate-y-0.5 transition-all"
               }`}

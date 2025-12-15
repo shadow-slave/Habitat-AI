@@ -16,10 +16,10 @@ const Home = ({ venues }) => {
   const [minRating, setMinRating] = useState(0);
 
   const filteredVenues = venues.filter((venue) => {
-    // 1. Filter by Category (PG vs Mess)
+    // 1. Filter by Category
     const matchesCategory = activeTab === "All" || venue.type === activeTab;
 
-    // 2. Filter by Search (Name OR Address)
+    // 2. Filter by Search
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch =
       venue.name.toLowerCase().includes(searchLower) ||
@@ -34,10 +34,9 @@ const Home = ({ venues }) => {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {/* --- LEFT SIDEBAR --- */}
+      {/* --- LEFT SIDEBAR (Desktop Only) --- */}
       <aside className="w-64 bg-white border-r border-gray-200 hidden md:flex flex-col fixed h-full z-10 top-16">
         <div className="p-6 space-y-8">
-          {/* Section 1: Categories */}
           <div>
             <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">
               Type of Stay
@@ -64,7 +63,6 @@ const Home = ({ venues }) => {
             </nav>
           </div>
 
-          {/* Section 2: Rating Filter */}
           <div>
             <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">
               Minimum Rating
@@ -102,29 +100,52 @@ const Home = ({ venues }) => {
       </aside>
 
       {/* --- RIGHT MAIN CONTENT --- */}
-      <main className="flex-1 md:ml-64 p-4 md:p-8">
-        {/* HERO BANNER */}
-        <div className="bg-gradient-to-r from-indigo-900 to-blue-800 rounded-3xl p-8 md:p-12 mb-10 text-white relative overflow-hidden shadow-xl">
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-40 h-40 bg-blue-400 opacity-20 rounded-full blur-2xl"></div>
+      {/* Added overflow-x-hidden to prevent horizontal scroll */}
+      <main className="flex-1 md:ml-64 p-4 md:p-8 w-full overflow-x-hidden">
+        {/* --- MOBILE CATEGORY FILTER (New: Only shows on Mobile) --- */}
+        <div className="md:hidden flex space-x-2 overflow-x-auto pb-4 scrollbar-hide mb-2">
+          {["All", "PG", "Mess"].map((type) => (
+            <button
+              key={type}
+              onClick={() => setActiveTab(type)}
+              className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold border ${
+                activeTab === type
+                  ? "bg-blue-600 text-white border-blue-600 shadow-md"
+                  : "bg-white text-gray-600 border-gray-200"
+              }`}
+            >
+              {type === "All" ? "All Stays" : type}
+            </button>
+          ))}
+        </div>
 
-          <div className="relative z-10 max-w-2xl">
+        {/* HERO BANNER */}
+        <div className="bg-gradient-to-r from-indigo-900 to-blue-800 rounded-3xl p-6 md:p-12 mb-10 text-white relative overflow-hidden shadow-xl">
+          {/* Decor Circles */}
+          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-40 h-40 bg-blue-400 opacity-20 rounded-full blur-2xl pointer-events-none"></div>
+
+          <div className="relative z-10 w-full max-w-2xl">
             <span className="bg-blue-500/30 text-blue-100 border border-blue-400/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-4 inline-block">
               Beta v1.0 • MSRIT Edition
             </span>
             <h1 className="text-3xl md:text-5xl font-extrabold mb-4 leading-tight">
               Find a safe home, <br /> not just a room.
             </h1>
-            <div className="bg-white p-2 rounded-xl shadow-lg flex items-center max-w-md">
-              <MapPin className="text-gray-400 ml-3" size={20} />
-              <input
-                type="text"
-                placeholder="Search by area (e.g. Mathikere)..."
-                className="flex-1 p-3 outline-none text-gray-700 placeholder-gray-400"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold transition">
+
+            {/* RESPONSIVE SEARCH BAR */}
+            <div className="bg-white p-2 rounded-xl shadow-lg flex flex-col sm:flex-row items-stretch sm:items-center w-full max-w-md gap-2 sm:gap-0">
+              <div className="flex items-center flex-1 px-2">
+                <MapPin className="text-gray-400 min-w-[20px]" size={20} />
+                <input
+                  type="text"
+                  placeholder="Search area..."
+                  className="flex-1 p-2 outline-none text-gray-700 placeholder-gray-400 text-sm md:text-base w-full"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold transition w-full sm:w-auto">
                 Search
               </button>
             </div>
@@ -132,12 +153,12 @@ const Home = ({ venues }) => {
         </div>
 
         {/* RESULTS HEADER */}
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-gray-900 flex items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+          <h2 className="text-xl font-bold text-gray-900 flex flex-wrap items-center">
             {activeTab === "All"
               ? "Top Recommendations"
               : `${activeTab} Listings`}
-            <span className="ml-3 bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded-full border border-gray-200">
+            <span className="ml-2 sm:ml-3 bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded-full border border-gray-200">
               {filteredVenues.length} found
             </span>
             {minRating > 0 && (
@@ -146,13 +167,25 @@ const Home = ({ venues }) => {
               </span>
             )}
           </h2>
+
+          {/* Clear Filter Button (Visible if filters active) */}
+          {(minRating > 0 || searchQuery) && (
+            <button
+              onClick={() => {
+                setMinRating(0);
+                setSearchQuery("");
+              }}
+              className="text-xs font-bold text-red-500 hover:underline"
+            >
+              Clear Filters
+            </button>
+          )}
         </div>
 
         {/* LISTINGS GRID */}
         {filteredVenues.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8 pb-20">
             {filteredVenues.map((venue) => (
-              // FIX: Use venue._id instead of venue.id
               <Link
                 to={`/venue/${venue._id}`}
                 key={venue._id}

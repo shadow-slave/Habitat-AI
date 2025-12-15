@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -13,14 +13,17 @@ import {
   User,
   ShieldCheck,
   PlusSquare,
-} from "lucide-react"; // Added PlusSquare
+  ShieldAlert,
+  Menu,
+  X,
+} from "lucide-react";
 import Home from "./pages/Home";
 import VenueDetails from "./pages/VenueDetails";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import Admin from "./pages/Admin"; // <--- Import Admin
+import Admin from "./pages/Admin";
 import SuperAdmin from "./pages/SuperAdmin";
-import { ShieldAlert } from "lucide-react"; // Import icon
+
 // --- HELPER FOR DISTANCE ---
 const MSRIT_LAT = 13.0306;
 const MSRIT_LNG = 77.5649;
@@ -102,7 +105,7 @@ const mockData = rawVenues.map((venue) => ({
   ),
 }));
 
-// Helper Link Component
+// Helper Link Component (Desktop)
 const NavLink = ({ to, icon, label }) => {
   const location = useLocation();
   const isActive = location.pathname === to;
@@ -121,8 +124,28 @@ const NavLink = ({ to, icon, label }) => {
   );
 };
 
+// Helper Link Component (Mobile)
+const MobileNavLink = ({ to, icon, label, onClick }) => {
+  const location = useLocation();
+  const isActive = location.pathname === to;
+  return (
+    <Link
+      to={to}
+      onClick={onClick}
+      className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-base font-medium transition-all ${
+        isActive ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-50"
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+    </Link>
+  );
+};
+
 function App() {
   const [user, setUser] = useState(JSON.parse(localStorage.getItem("user")));
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   const handleLogout = () => {
     localStorage.removeItem("user");
     window.location.href = "/";
@@ -131,10 +154,11 @@ function App() {
   return (
     <Router>
       <div className="font-sans text-gray-900 bg-gray-50 min-h-screen flex flex-col">
-        {/* NAVBAR */}
-        <nav className="sticky top-0 z-50 border-b border-gray-200 bg-white/80 backdrop-blur-md shadow-sm">
+        {/* --- NAVBAR --- */}
+        <nav className="sticky top-0 z-50 border-b border-gray-200 bg-white/80 backdrop-blur-md shadow-sm w-full">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16 items-center">
+              {/* LOGO */}
               <Link to="/" className="flex items-center group">
                 <div className="bg-blue-600 p-1.5 rounded-lg mr-2 group-hover:scale-105 transition-transform">
                   <ShieldCheck size={20} className="text-white" />
@@ -149,22 +173,20 @@ function App() {
                 </div>
               </Link>
 
-              <div className="flex items-center space-x-4">
+              {/* DESKTOP MENU (Hidden on Mobile) */}
+              <div className="hidden md:flex items-center space-x-4">
                 <NavLink
                   to="/"
                   icon={<LayoutDashboard size={18} />}
                   label="Dashboard"
                 />
-
-                {/* ADMIN LINK (Added Here) */}
-                {/* STANDARD USER LINKS */}
                 <NavLink
                   to="/admin"
                   icon={<PlusSquare size={18} />}
                   label="Post Property"
                 />
 
-                {/* SUPER ADMIN LINK (Only visible if email is admin@habitat.ai) */}
+                {/* Super Admin Link */}
                 {user && user.email === "admin@habitat.ai" && (
                   <div className="ml-2">
                     <Link
@@ -180,7 +202,7 @@ function App() {
                     </Link>
                   </div>
                 )}
-                
+
                 <div className="h-6 w-px bg-gray-200 mx-2"></div>
 
                 {user ? (
@@ -210,8 +232,83 @@ function App() {
                   </Link>
                 )}
               </div>
+
+              {/* MOBILE MENU BUTTON (Visible only on Mobile) */}
+              <div className="md:hidden flex items-center">
+                <button
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  // FIXED: Changed 'p-6' to 'p-2' to fix alignment
+                  className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 focus:outline-none"
+                >
+                  {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                </button>
+              </div>
             </div>
           </div>
+
+          {/* --- MOBILE DROPDOWN MENU --- */}
+          {isMobileMenuOpen && (
+            <div className="md:hidden bg-white border-b border-gray-200 px-4 pt-2 pb-6 shadow-xl animate-fade-in-down w-full">
+              <div className="space-y-2">
+                <MobileNavLink
+                  to="/"
+                  icon={<LayoutDashboard size={20} />}
+                  label="Dashboard"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                />
+                <MobileNavLink
+                  to="/admin"
+                  icon={<PlusSquare size={20} />}
+                  label="Post Property"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                />
+
+                {/* Mobile Super Admin */}
+                {user && user.email === "admin@habitat.ai" && (
+                  <MobileNavLink
+                    to="/super-admin"
+                    icon={<ShieldAlert size={20} className="text-red-500" />}
+                    label="Admin Approvals"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  />
+                )}
+
+                <div className="border-t border-gray-100 my-2 pt-2"></div>
+
+                {user ? (
+                  <>
+                    <div className="flex items-center px-4 py-3 bg-gray-50 rounded-xl mb-2">
+                      <div className="bg-blue-100 p-1.5 rounded-full mr-3">
+                        <User size={16} className="text-blue-700" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 font-bold uppercase">
+                          Logged in as
+                        </p>
+                        <p className="text-sm font-bold text-gray-900">
+                          {user.email}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-base font-medium text-red-600 bg-red-50 hover:bg-red-100"
+                    >
+                      <LogOut size={20} />
+                      <span>Logout</span>
+                    </button>
+                  </>
+                ) : (
+                  <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>
+                    <button className="w-full flex items-center justify-center space-x-2 bg-gray-900 text-white px-4 py-3 rounded-xl text-base font-bold shadow-lg mt-2">
+                      <LogIn size={20} />
+                      <span>Login Account</span>
+                    </button>
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
         </nav>
 
         <div className="flex-1">
@@ -223,7 +320,7 @@ function App() {
             />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/admin" element={<Admin />} /> {/* REGISTER ROUTE */}
+            <Route path="/admin" element={<Admin />} />
             <Route path="/super-admin" element={<SuperAdmin />} />
           </Routes>
         </div>
