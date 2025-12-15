@@ -5,10 +5,35 @@ import Review from '../models/Review.js'
 import multer from 'multer'
 import { v2 as cloudinary } from 'cloudinary'
 import { CloudinaryStorage } from 'multer-storage-cloudinary'
-import { attachUser } from '../middlewares/auth.js'
+import { GoogleGenerativeAI } from "@google/generative-ai"; // <--- Import Google AI
+import dotenv from 'dotenv'
+dotenv.config()
 
 const router = express.Router()
 const sentiment = new Sentiment()
+
+const MSRIT_LAT = 13.0306;
+const MSRIT_LNG = 77.5649;
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+function deg2rad(deg) {
+    return deg * (Math.PI / 180);
+}
+
+function calculateDistance(lat, lon) {
+    const R = 6371; // Radius of the earth in km
+    const dLat = deg2rad(lat - MSRIT_LAT);
+    const dLon = deg2rad(lon - MSRIT_LNG);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(deg2rad(MSRIT_LAT)) * Math.cos(deg2rad(lat)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return parseFloat((R * c).toFixed(1)); // Returns distance in km (1 decimal place)
+}
+
 
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -27,28 +52,103 @@ const storage = new CloudinaryStorage({
 const upload = multer({ storage: storage });
 
 
-router.post("/", upload.array('images'), async (req, res, next) => {
+async function updateVenueSummary(venueId) {
+    try {
+        // 1. Fetch all reviews for this venue
+        const reviews = await Review.find({ venueId }).select('description rating');
 
-    const imageUrls = req.files ? req.files.map(file => file.path) : [];
+        if (reviews.length === 0) return;
 
-    const venueData = {
-        ...req.body,
-        images: imageUrls
+        // 2. Prepare text for AI
+        const reviewTexts = reviews.map(r => `- "${r.description}" (${r.rating}/5)`).join("\n");
+
+        const prompt = `
+            You are a helpful assistant for students looking for housing. 
+            Here are recent reviews for a hostel/mess:
+            ${reviewTexts}
+
+            Based on these reviews, write a very short, balanced summary (max 2 sentences).
+            Format it like: "Pros: ... Cons: ..."
+            Do not include Markdown formatting or bold text.
+        `;
+
+        // 3. Call Gemini API
+        const result = await model.generateContent(prompt);
+        const aiSummary = result.response.text();
+
+        // 4. Update Venue in DB
+        await Venue.findByIdAndUpdate(venueId, { aiSummary: aiSummary });
+        console.log(`Updated AI Summary for ${venueId}`);
+
+    } catch (error) {
+        console.error("AI Summary Generation Failed:", error);
+        // Don't crash the server if AI fails, just log it
     }
+}
 
-    const newVenue = new Venue(venueData)
-    const savedVenue = await newVenue.save()
+router.post("/", upload.array("images"), async (req, res, next) => {
+    try {
+        const imageUrls = req.files ? req.files.map(file => file.path) : [];
 
-    res.status(200).json({
-        message: "Venue created successfully",
-        isSuccess: true,
-        data: savedVenue
-    })
+        const {
+            name,
+            type,
+            ownerName,
+            contactNo,
+            description,
+            minPrice,
+            maxPrice,
+            street,
+            latitude,
+            longitude
+        } = req.body;
 
-})
+        // --- CALCULATE DISTANCE HERE ---
+        let distanceFromMSRIT = 0;
+        if (latitude && longitude) {
+            distanceFromMSRIT = calculateDistance(Number(latitude), Number(longitude));
+        }
+
+        const venueData = {
+            name,
+            type,
+            ownerName,
+            contactNo,
+            description,
+            cost: {
+                min: Number(minPrice),
+                max: Number(maxPrice),
+                per: "Month"
+            },
+            address: {
+                street,
+                pincode: "560054",
+                latitude: latitude ? Number(latitude) : undefined,
+                longitude: longitude ? Number(longitude) : undefined
+            },
+            images: imageUrls,
+            distanceFromMSRIT: distanceFromMSRIT // <--- Added Calculated Distance
+        };
+
+        const newVenue = new Venue(venueData);
+        const savedVenue = await newVenue.save();
+
+        res.status(201).json({
+            isSuccess: true,
+            data: savedVenue
+        });
+    } catch (error) {
+        console.error("Save Error:", error);
+        res.status(400).json({
+            isSuccess: false,
+            message: error.message
+        });
+    }
+});
+
 
 router.get("/", async (req, res, next) => {
-    const { distance, rating, price, type = "PG" } = req.query
+    const { distance, rating, price, type } = req.query
 
     const query = {}
     if (type) query.type = type
@@ -137,21 +237,25 @@ router.get("/:id", async (req, res, next) => {
     })
 })
 
+
 router.post("/review", async (req, res, next) => {
-    const { venueId, description, rating } = req.body
+    const { venueId, description, rating, userId } = req.body
 
+    if (!userId) {
+        return res.status(400).json({ message: "User ID is required" });
+    }
+
+    // 1. Sentiment Analysis (Local - Fast)
     const result = sentiment.analyze(description)
-    const userId = req.user
-
     let sentimentLabel = "Neutral"
     if (result.score > 0) sentimentLabel = "Positive";
     if (result.score < 0) sentimentLabel = "Negative";
 
+    // Toxic Language Filter
     if (result.score < -3) {
         res.status(400)
         return next(new Error("Review contains toxic language"))
     }
-
 
     const venue = await Venue.findById(venueId)
     if (!venue) {
@@ -159,30 +263,30 @@ router.post("/review", async (req, res, next) => {
         return next(new Error("Invalid venue"))
     }
 
-
-
+    // 2. Save Review
     const newReview = new Review({
         venueId,
         description,
-        userId: req.user._id,
+        userId: userId,
         rating: Number(rating),
         sentiment: sentimentLabel
     })
-
     await newReview.save()
 
+    // 3. Update Average Rating
     const reviews = await Review.find({ venueId })
     const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0)
     const newAvgRating = totalRating / reviews.length
     venue.rating = Number(newAvgRating.toFixed(1))
     await venue.save()
 
+    await newReview.populate("userId", "name email");
+
+
+    updateVenueSummary(venueId);
+
     res.status(201).json({ message: "Review added", data: newReview });
 })
-
-
-
-
 
 
 

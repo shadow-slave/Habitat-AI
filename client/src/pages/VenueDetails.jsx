@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
+import axios from "axios";
 import {
   ShieldCheck,
   User,
@@ -7,77 +8,95 @@ import {
   CheckCircle,
   Lock,
   MapPin,
-  Wifi,
-  Zap,
   Utensils,
   IndianRupee,
   Info,
   Phone,
-  Navigation,
   Layers,
   Star,
+  Loader,
+  Sparkles, // Added Sparkles icon for AI section
 } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 
-const VenueDetails = ({ venues }) => {
+const VenueDetails = () => {
   const { id } = useParams();
-  const venue = venues.find((v) => v._id === id || v.id === parseInt(id));
+  const { user } = useAuth();
 
-  const [selectedImage, setSelectedImage] = useState(
-    venue ? venue.images[0] : ""
-  );
-
-  // Mock Reviews
-  const [reviewsList, setReviewsList] = useState([
-    {
-      id: 1,
-      user: "Rahul S.",
-      rating: 5,
-      text: "Great generator backup!",
-      isVerified: true,
-      date: "2 days ago",
-    },
-    {
-      id: 2,
-      user: "Ankit (Guest)",
-      rating: 3,
-      text: "Food is okay, wifi spotty.",
-      isVerified: false,
-      date: "1 week ago",
-    },
-  ]);
+  const [venue, setVenue] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [reviewsList, setReviewsList] = useState([]);
+  const [selectedImage, setSelectedImage] = useState("");
 
   const [review, setReview] = useState("");
   const [rating, setRating] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const loggedInUser = JSON.parse(localStorage.getItem("user"));
+  // --- FETCH DETAILS ---
+  useEffect(() => {
+    const fetchVenueDetails = async () => {
+      try {
+        const response = await axios.get(`/api/venues/${id}`);
+        if (response.data.isSuccess) {
+          const data = response.data.data;
+          setVenue(data);
+          setReviewsList(data.reviews || []);
+          if (data.images && data.images.length > 0) {
+            setSelectedImage(data.images[0]);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch venue details", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchVenueDetails();
+  }, [id]);
+
+  // --- SUBMIT REVIEW ---
+  const handleSubmit = async () => {
+    if (!review || rating === 0) return alert("Please add rating & review!");
+    if (!user) return alert("You must be logged in to review.");
+
+    setIsSubmitting(true);
+
+    try {
+      const payload = {
+        venueId: id,
+        description: review,
+        rating: rating,
+        userId: user._id || user.id,
+      };
+
+      const response = await axios.post("/api/venues/review", payload);
+
+      if (response.status === 201) {
+        const newReview = response.data.data;
+        setReviewsList([newReview, ...reviewsList]);
+        setSubmitted(true);
+        setReview("");
+        setRating(0);
+
+        // Optimistically update sentiment if needed, though usually requires refresh
+      }
+    } catch (error) {
+      console.error("Review failed:", error);
+      alert(error.response?.data?.message || "Failed to submit review");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (loading)
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader className="animate-spin text-blue-600" size={40} />
+      </div>
+    );
 
   if (!venue) return <div className="p-10 text-center">Venue not found</div>;
-
-  const handleSubmit = () => {
-    if (!review || rating === 0) return alert("Please add rating & review!");
-    setIsSubmitting(true);
-    setTimeout(() => {
-      const isMsrit = loggedInUser?.email.toLowerCase().endsWith("@msrit.edu");
-      setReviewsList([
-        {
-          id: Date.now(),
-          user:
-            loggedInUser.email.split("@")[0] + (isMsrit ? " (Verified)" : ""),
-          rating,
-          text: review,
-          isVerified: isMsrit,
-          date: "Just now",
-        },
-        ...reviewsList,
-      ]);
-      setIsSubmitting(false);
-      setSubmitted(true);
-      setReview("");
-      setRating(0);
-    }, 1500);
-  };
 
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-8 animate-fade-in space-y-8">
@@ -85,7 +104,10 @@ const VenueDetails = ({ venues }) => {
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 relative group">
         <div className="h-72 md:h-96 overflow-hidden relative">
           <img
-            src={selectedImage}
+            src={
+              selectedImage ||
+              "https://via.placeholder.com/800x400?text=No+Image"
+            }
             alt={venue.name}
             className="w-full h-full object-cover transition-opacity duration-300"
           />
@@ -96,31 +118,33 @@ const VenueDetails = ({ venues }) => {
             </h1>
             <p className="text-gray-200 text-lg flex items-center">
               <MapPin className="mr-2 text-blue-400" size={20} />
-              {venue.distanceFromMSRIT} km from MSRIT
+              {venue.distanceFromMSRIT || "N/A"} km from MSRIT
             </p>
           </div>
         </div>
 
         {/* Gallery Thumbnails */}
-        <div className="bg-white p-2 flex space-x-2 overflow-x-auto border-t border-gray-100">
-          {venue.images.map((img, idx) => (
-            <button
-              key={idx}
-              onClick={() => setSelectedImage(img)}
-              className={`relative w-24 h-16 rounded-lg overflow-hidden flex-shrink-0 ${
-                selectedImage === img
-                  ? "ring-2 ring-blue-600 opacity-100"
-                  : "opacity-60"
-              }`}
-            >
-              <img
-                src={img}
-                alt="thumb"
-                className="w-full h-full object-cover"
-              />
-            </button>
-          ))}
-        </div>
+        {venue.images && venue.images.length > 1 && (
+          <div className="bg-white p-2 flex space-x-2 overflow-x-auto border-t border-gray-100">
+            {venue.images.map((img, idx) => (
+              <button
+                key={idx}
+                onClick={() => setSelectedImage(img)}
+                className={`relative w-24 h-16 rounded-lg overflow-hidden flex-shrink-0 ${
+                  selectedImage === img
+                    ? "ring-2 ring-blue-600 opacity-100"
+                    : "opacity-60"
+                }`}
+              >
+                <img
+                  src={img}
+                  alt="thumb"
+                  className="w-full h-full object-cover"
+                />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -135,7 +159,7 @@ const VenueDetails = ({ venues }) => {
               <DetailItem
                 icon={<IndianRupee />}
                 label="Price Range"
-                value={`₹${venue.cost.min} - ₹${venue.cost.max || "N/A"}`}
+                value={`₹${venue.cost?.min} - ₹${venue.cost?.max || "N/A"}`}
               />
               <DetailItem
                 icon={<Phone />}
@@ -145,12 +169,12 @@ const VenueDetails = ({ venues }) => {
               <DetailItem
                 icon={<Layers />}
                 label="Sharing Types"
-                value={venue.sharingTypes.join(", ")}
+                value={venue.sharingTypes?.join(", ") || "N/A"}
               />
               <DetailItem
                 icon={<Utensils />}
                 label="Food Types"
-                value={venue.availableFoods.join(", ")}
+                value={venue.availableFoods?.join(", ") || "N/A"}
               />
             </div>
 
@@ -162,75 +186,107 @@ const VenueDetails = ({ venues }) => {
             </div>
           </div>
 
-          {/* Map Section */}
-          <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
-            <div className="p-4 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="font-bold text-gray-900 flex items-center">
-                <Navigation className="mr-2 text-blue-600" size={20} /> Location
-              </h3>
-              <span className="text-xs text-gray-500">
-                {venue.address.street}
-              </span>
-            </div>
-            <div className="h-64 bg-gray-100 w-full relative">
-              <iframe
-                width="100%"
-                height="100%"
-                frameBorder="0"
-                scrolling="no"
-                marginHeight="0"
-                marginWidth="0"
-                src={`https://maps.google.com/maps?q=${venue.address.latitude},${venue.address.longitude}&hl=es;z=14&output=embed`}
-                className="absolute inset-0"
-              ></iframe>
-            </div>
-          </div>
+          {/* --- NEW AI SUMMARY SECTION --- */}
+          {(venue.aiSummary || venue.generalSentiment) && (
+            <div
+              className={`border p-6 md:p-8 rounded-2xl relative overflow-hidden ${
+                venue.generalSentiment === "Positive"
+                  ? "bg-green-50 border-green-100"
+                  : venue.generalSentiment === "Negative"
+                  ? "bg-red-50 border-red-100"
+                  : "bg-blue-50 border-blue-100"
+              }`}
+            >
+              <div className="relative z-10">
+                <h3
+                  className={`font-bold text-lg mb-3 uppercase tracking-wide flex items-center ${
+                    venue.generalSentiment === "Positive"
+                      ? "text-green-800"
+                      : venue.generalSentiment === "Negative"
+                      ? "text-red-800"
+                      : "text-blue-800"
+                  }`}
+                >
+                  <Sparkles size={20} className="mr-2" /> Gemini AI Verdict
+                </h3>
 
-          {/* AI Summary */}
-          <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 p-6 md:p-8 rounded-2xl">
-            <h3 className="text-indigo-900 font-bold text-lg mb-3 uppercase tracking-wide flex items-center">
-              ✨ Gemini AI Verdict
-            </h3>
-            <p className="text-indigo-800 text-lg italic leading-relaxed font-serif">
-              "{venue.aiSummary}"
-            </p>
-          </div>
+                {/* Display the Generated Text Summary */}
+                {venue.aiSummary ? (
+                  <p className="text-gray-800 italic font-medium leading-relaxed">
+                    "{venue.aiSummary}"
+                  </p>
+                ) : (
+                  <p className="text-gray-600">
+                    Based on student reviews, the overall sentiment is{" "}
+                    <strong>{venue.generalSentiment}</strong>.
+                  </p>
+                )}
+              </div>
+
+              {/* Background Decor */}
+              <div className="absolute -right-10 -bottom-10 opacity-10 text-9xl rotate-12 select-none pointer-events-none">
+                🤖
+              </div>
+            </div>
+          )}
 
           {/* Reviews List */}
           <div className="space-y-6">
             <h3 className="text-2xl font-bold text-gray-900">
-              Recent Student Audits
+              Recent Student Audits ({reviewsList.length})
             </h3>
-            {reviewsList.map((rev) => (
-              <div
-                key={rev.id}
-                className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center mr-3">
-                      <User size={18} />
+
+            {reviewsList.length === 0 ? (
+              <p className="text-gray-500 italic">
+                No reviews yet. Be the first to review!
+              </p>
+            ) : (
+              reviewsList.map((rev) => (
+                <div
+                  key={rev._id}
+                  className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center mr-3">
+                        <User size={18} />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-gray-900 flex items-center">
+                          {rev.userId?.name || "Student"}
+                          {rev.userId?.email?.includes("msrit") && (
+                            <BadgeCheck
+                              size={14}
+                              className="text-blue-600 ml-1"
+                            />
+                          )}
+                        </h4>
+                        <p className="text-xs text-gray-400">
+                          {new Date(rev.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-bold text-gray-900 flex items-center">
-                        {rev.user}{" "}
-                        {rev.isVerified && (
-                          <BadgeCheck
-                            size={14}
-                            className="text-blue-600 ml-1"
-                          />
-                        )}
-                      </h4>
-                      <p className="text-xs text-gray-400">{rev.date}</p>
+                    <div className="flex flex-col items-end">
+                      <div className="bg-yellow-50 text-yellow-700 px-2 py-1 rounded font-bold text-sm mb-1">
+                        {rev.rating} ★
+                      </div>
+                      <span
+                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                          rev.sentiment === "Positive"
+                            ? "bg-green-100 text-green-700"
+                            : rev.sentiment === "Negative"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {rev.sentiment}
+                      </span>
                     </div>
                   </div>
-                  <div className="bg-yellow-50 text-yellow-700 px-2 py-1 rounded font-bold text-sm">
-                    {rev.rating} ★
-                  </div>
+                  <p className="text-gray-600 mt-2">{rev.description}</p>
                 </div>
-                <p className="text-gray-600">{rev.text}</p>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -241,7 +297,7 @@ const VenueDetails = ({ venues }) => {
               <ShieldCheck className="mr-2 text-blue-600" /> Submit Audit
             </h2>
 
-            {!loggedInUser ? (
+            {!user ? (
               <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-300">
                 <Lock className="text-gray-400 mx-auto mb-3" size={24} />
                 <h3 className="font-bold text-gray-900">Login Required</h3>
@@ -291,20 +347,8 @@ const VenueDetails = ({ venues }) => {
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs text-gray-400 mt-2 font-medium ml-1">
-                    {rating === 0
-                      ? "Select a rating"
-                      : rating === 5
-                      ? "Excellent"
-                      : rating === 4
-                      ? "Very Good"
-                      : rating === 3
-                      ? "Average"
-                      : rating === 2
-                      ? "Poor"
-                      : "Terrible"}
-                  </p>
                 </div>
+
                 <textarea
                   className="w-full border p-3 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500 transition"
                   rows="3"
@@ -312,6 +356,7 @@ const VenueDetails = ({ venues }) => {
                   value={review}
                   onChange={(e) => setReview(e.target.value)}
                 ></textarea>
+
                 <button
                   onClick={handleSubmit}
                   disabled={isSubmitting}

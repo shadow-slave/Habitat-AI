@@ -23,8 +23,7 @@ app.get("/", (req, res) => {
 // Auth Routes
 
 app.use("/api/auth", authRoute)
-app.use("/api/admin", venueRoute)
-
+app.use("/api/venues", venueRoute)
 app.use(notFound)
 app.use(errorHandler)
 app.listen(port, () => {

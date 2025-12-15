@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { ShieldCheck, Mail, Lock, ArrowRight } from "lucide-react"; // Added Icons
-import { Link } from "react-router-dom";
+import { ShieldCheck, Mail, Lock, ArrowRight } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom"; // Added useNavigate
+import { useAuth } from "../context/AuthContext"; // Import the hook
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -8,26 +9,31 @@ const Login = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e) => {
+  const { login } = useAuth(); // Get login function
+  const navigate = useNavigate(); // For redirection
+
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    // SIMULATE LOGIC (Same as before)
-    setTimeout(() => {
-      const isMsrit = email.toLowerCase().endsWith("@msrit.edu");
-      const role = isMsrit ? "Student (Verified)" : "Student (Guest)";
+    // Call the real login function from context
+    const result = await login(email, password);
 
-      localStorage.setItem("user", JSON.stringify({ email, role }));
+    if (result.success) {
+      // Redirect to home on success
+      navigate("/");
+    } else {
+      // Show error message returned from backend
+      setError(result.message);
+    }
 
-      setLoading(false);
-      window.location.href = "/";
-    }, 1500);
+    setLoading(false);
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-gradient-to-br from-blue-900 via-indigo-800 to-slate-900">
-      {/* --- BACKGROUND DECORATION (Glowing Orbs) --- */}
+      {/* --- BACKGROUND DECORATION --- */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
         <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
         <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
