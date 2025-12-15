@@ -11,7 +11,7 @@ const mockData = [
     safetyScore: 4.8,
     distance: "0.5 km",
     image:
-      "https://images.unsplash.com/photo-1522771753035-1a5b6562f3ba?auto=format&fit=crop&w=800&q=80",
+      "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSwOnnIdc3KCunwdnbYTmMxvIIHX3upy_RpakBQKZ-Fn_5HzyYwmlZ-ow8OU1uAcuyh99-onF3VrLS5R6RqDtkyC3vdwes5R-hUPnzT0SGvya1cgDWMLJVihjRakJ4KCjsJAPFYk=s1360-w1360-h1020-rw",
     aiSummary:
       "Pros: Very close to Gate 10, clean washrooms. Cons: Food is repetitive and spicy.",
   },
