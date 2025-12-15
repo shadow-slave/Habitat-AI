@@ -86,24 +86,24 @@ async function updateVenueSummary(venueId) {
     }
 }
 
-router.post("/", upload.array("images"), async (req, res, next) => {
+router.post("/", upload.array("images"), async (req, res) => {
     try {
-        const imageUrls = req.files ? req.files.map(file => file.path) : [];
+        const imageUrls = req.files?.map(f => f.path) || [];
 
         const {
-            name,
-            type,
-            ownerName,
-            contactNo,
-            description,
-            minPrice,
-            maxPrice,
-            street,
-            latitude,
-            longitude
+            name, type, ownerName, contactNo, description,
+            minPrice, maxPrice, street, latitude, longitude,
+
+            // MESS
+            foodType,
+            mealsProvided,
+            weeklyMenu,
+
+            // PG
+            availableRoomTypes,
+            sharingTypes
         } = req.body;
 
-        // --- CALCULATE DISTANCE HERE ---
         let distanceFromMSRIT = 0;
         if (latitude && longitude) {
             distanceFromMSRIT = calculateDistance(Number(latitude), Number(longitude));
@@ -115,34 +115,39 @@ router.post("/", upload.array("images"), async (req, res, next) => {
             ownerName,
             contactNo,
             description,
+            images: imageUrls,
+            distanceFromMSRIT,
+
             cost: {
                 min: Number(minPrice),
                 max: Number(maxPrice),
                 per: "Month"
             },
+
             address: {
                 street,
                 pincode: "560054",
-                latitude: latitude ? Number(latitude) : undefined,
-                longitude: longitude ? Number(longitude) : undefined
-            },
-            images: imageUrls,
-            distanceFromMSRIT: distanceFromMSRIT // <--- Added Calculated Distance
+                latitude: Number(latitude),
+                longitude: Number(longitude),
+            }
         };
 
-        const newVenue = new Venue(venueData);
-        const savedVenue = await newVenue.save();
+        if (type === "PG") {
+            venueData.availableRoomTypes = JSON.parse(availableRoomTypes || "[]");
+            venueData.sharingTypes = JSON.parse(sharingTypes || "[]");
+        }
 
-        res.status(201).json({
-            isSuccess: true,
-            data: savedVenue
-        });
-    } catch (error) {
-        console.error("Save Error:", error);
-        res.status(400).json({
-            isSuccess: false,
-            message: error.message
-        });
+        if (type === "Mess") {
+            venueData.foodType = foodType;
+            venueData.mealsProvided = JSON.parse(mealsProvided || "{}");
+            venueData.weeklyMenu = JSON.parse(weeklyMenu || "[]");
+        }
+
+        const venue = await Venue.create(venueData);
+
+        res.status(201).json({ isSuccess: true, data: venue });
+    } catch (err) {
+        res.status(400).json({ isSuccess: false, message: err.message });
     }
 });
 
@@ -150,7 +155,9 @@ router.post("/", upload.array("images"), async (req, res, next) => {
 router.get("/", async (req, res, next) => {
     const { distance, rating, price, type } = req.query
 
-    const query = {}
+    const query = {
+        __v: 1
+    }
     if (type) query.type = type
     if (distance) query.distanceFromMSRIT = { $lte: Number(distance) }
     if (price) query["cost.min"] = { $lte: Number(price) }
@@ -200,6 +207,68 @@ router.get("/", async (req, res, next) => {
         data: venues
     })
 })
+
+router.get("/verify", async (req, res, next) => {
+    try {
+        const venues = await Venue.find({ __v: 0 }).sort({ createdAt: -1 });
+        res.status(200).json({
+            isSuccess: true,
+            venues,
+        });
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.post("/verify/:id", async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        const venue = await Venue.findByIdAndUpdate(
+            id,
+            { __v: 1 },
+            { new: true }
+        );
+
+        if (!venue) {
+            res.status(404);
+            return next(new Error("Venue not found"));
+        }
+
+        res.status(200).json({
+            isSuccess: true,
+            message: "Venue verified and published",
+            venue,
+        });
+    } catch (err) {
+        next(err);
+    }
+});
+router.delete("/verify/:id", async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        const venue = await Venue.findByIdAndUpdate(
+            id,
+            { __v: 2 },
+            { new: true }
+        );
+
+        if (!venue) {
+            res.status(404);
+            return next(new Error("Venue not found"));
+        }
+
+        res.status(200).json({
+            isSuccess: true,
+            message: "Venue rejected",
+            venue,
+        });
+    } catch (err) {
+        next(err);
+    }
+});
+
 
 router.get("/:id", async (req, res, next) => {
     const { id } = req.params
@@ -287,6 +356,7 @@ router.post("/review", async (req, res, next) => {
 
     res.status(201).json({ message: "Review added", data: newReview });
 })
+
 
 
 

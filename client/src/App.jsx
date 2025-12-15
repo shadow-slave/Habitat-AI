@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   Menu,
   X,
+  ShieldCheckIcon,
 } from "lucide-react";
 import Home from "./pages/Home";
 import VenueDetails from "./pages/VenueDetails";
@@ -129,6 +130,14 @@ const MainContent = () => {
                   to="/admin"
                   icon={<PlusSquare size={18} />}
                   label="Post Property"
+                />
+              )}
+
+              {user && user.role === "admin" && (
+                <NavLink
+                  to={"/super-admin"}
+                  icon={<ShieldCheckIcon />}
+                  label={"Verify Venues"}
                 />
               )}
 
