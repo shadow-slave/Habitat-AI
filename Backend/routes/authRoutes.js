@@ -46,6 +46,8 @@ router.post("/login", async (req, res, next) => {
         delete userResponse.password
         delete userResponse.__v
 
+        req.user = user
+
         res.status(200).json({
             message: "Login Successful",
             isSuccess: true,
@@ -60,6 +62,7 @@ router.post("/login", async (req, res, next) => {
 
 router.post("/logout", (req, res, next) => {
     res.status(200).json({ message: "Logout Success", isSuccess: true })
+    req.user = null
 })
 
 
