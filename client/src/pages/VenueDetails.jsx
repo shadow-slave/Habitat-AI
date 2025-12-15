@@ -22,7 +22,7 @@ import {
   ChefHat,
   Clock, // Added Clock icon for menu
 } from "lucide-react";
-import { useAuth } from "../context/AuthContext"; // Ensure correct path to AuthContext
+import { useAuth } from "../context/AuthContext";
 
 const VenueDetails = () => {
   const { id } = useParams();
@@ -131,7 +131,6 @@ const VenueDetails = () => {
 
   // --- Date Formatting Helper ---
   const formatDate = (dateString) => {
-    // Ensure dateString is valid before trying to format
     if (!dateString) return "N/A";
     try {
       return new Date(dateString).toLocaleDateString("en-IN", {
@@ -142,9 +141,16 @@ const VenueDetails = () => {
         minute: "2-digit",
       });
     } catch (e) {
-      return dateString; // Return original if parsing fails
+      return dateString;
     }
   };
+
+  // --- MAP COORD & SETUP ---
+  const defaultLat = 13.0306; // MSRIT Lat
+  const defaultLng = 77.5649; // MSRIT Lng
+  const currentLat = venue.address?.latitude || defaultLat;
+  const currentLng = venue.address?.longitude || defaultLng;
+  const showMap = !!(venue.address?.latitude && venue.address?.longitude);
 
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-8 animate-fade-in space-y-8">
@@ -178,7 +184,7 @@ const VenueDetails = () => {
               <MapPin className="mr-2 text-blue-400" size={20} />
               {venue.distanceFromMSRIT
                 ? `${venue.distanceFromMSRIT} km from MSRIT`
-                : "Location: " + (venue.street || "N/A")}
+                : "Location: " + (venue.address?.street || "N/A")}
             </p>
           </div>
         </div>
@@ -230,20 +236,41 @@ const VenueDetails = () => {
                   venue.contactNo || "N/A"
                 })`}
               />
+
+              {/* --- FIX: PG ROOM TYPES --- */}
               {venue.type === "PG" && (
                 <DetailItem
                   icon={<Layers />}
                   label="Room Types"
-                  value={venue.availableRoomTypes?.join(", ") || "N/A"}
+                  // Assuming availableRoomTypes is a comma-separated string if not an array
+                  value={
+                    (Array.isArray(venue.availableRoomTypes)
+                      ? venue.availableRoomTypes.join(", ")
+                      : venue.availableRoomTypes
+                          ?.split(",")
+                          .map((s) => s.trim())
+                          .join(", ")) || "N/A"
+                  }
                 />
               )}
+
+              {/* --- FIX: PG SHARING OPTIONS --- */}
               {venue.type === "PG" && (
                 <DetailItem
                   icon={<User />}
                   label="Sharing Options"
-                  value={venue.sharingTypes?.join(", ") || "N/A"}
+                  // Assuming sharingTypes is a comma-separated string if not an array
+                  value={
+                    (Array.isArray(venue.sharingTypes)
+                      ? venue.sharingTypes.join(", ")
+                      : venue.sharingTypes
+                          ?.split(",")
+                          .map((s) => s.trim())
+                          .join(", ")) || "N/A"
+                  }
                 />
               )}
+
               {venue.type === "Mess" && (
                 <>
                   <DetailItem
@@ -275,6 +302,59 @@ const VenueDetails = () => {
               </p>
             </div>
           </div>
+
+          {/* --- MAP LOCATION SECTION (OPENSTREETMAP) --- */}
+          <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100">
+            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+              <MapPin className="mr-2 text-red-600" /> Exact Location
+            </h3>
+
+            <p className="text-gray-600 mb-4 font-medium">
+              {venue.address?.street || "Address not available."}
+            </p>
+
+            <div className="h-96 w-full rounded-xl overflow-hidden border border-gray-300">
+              {showMap ? (
+                // OpenStreetMap embed URL using coordinates
+                <iframe
+                  width="100%"
+                  height="100%"
+                  frameBorder="0"
+                  style={{ border: 0 }}
+                  // Using OpenStreetMap Embed URL (free, no key needed)
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${
+                    currentLng - 0.005
+                  }%2C${currentLat - 0.005}%2C${currentLng + 0.005}%2C${
+                    currentLat + 0.005
+                  }&layer=mapnik&marker=${currentLat}%2C${currentLng}`}
+                  allowFullScreen
+                  title="Venue Location Map"
+                ></iframe>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
+                  <MapPin size={32} className="mr-2" />
+                  Location coordinates are not available for embedding.
+                </div>
+              )}
+            </div>
+
+            {showMap && (
+              <p className="mt-4 text-xs text-gray-500">
+                Coordinates: Lat {venue.address?.latitude}, Lng{" "}
+                {venue.address?.longitude}
+                {/* Optional: Add a link to open in Google Maps for direction */}
+                <a
+                  href={`https://www.google.com/maps/embed/v1/place7{currentLat},${currentLng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline ml-2 font-medium"
+                >
+                  (View on Google Maps)
+                </a>
+              </p>
+            )}
+          </div>
+          {/* --- END MAP LOCATION SECTION --- */}
 
           {/* --- MESS WEEKLY MENU (Conditional - IMPROVED UI) --- */}
           {venue.type === "Mess" &&
@@ -345,7 +425,6 @@ const VenueDetails = () => {
                           </td>
                         </tr>
                       ))}
-                      {/* Optional: Add a footer row for timing */}
                       <tr className="bg-gray-50">
                         <td
                           className="px-4 py-2 font-semibold text-gray-500 flex items-center text-xs"

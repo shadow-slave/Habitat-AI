@@ -16,8 +16,10 @@ const Home = ({ venues }) => {
   const [minRating, setMinRating] = useState(0);
 
   const filteredVenues = venues.filter((venue) => {
-    // 1. Filter by Category
-    const matchesCategory = activeTab === "All" || venue.type === activeTab;
+    // 1. Filter by Category (FIXED: Convert both sides to uppercase for consistent comparison)
+    const matchesCategory =
+      activeTab === "All" ||
+      (venue.type && venue.type.toUpperCase() === activeTab.toUpperCase());
 
     // 2. Filter by Search
     const searchLower = searchQuery.toLowerCase();
@@ -100,7 +102,6 @@ const Home = ({ venues }) => {
       </aside>
 
       {/* --- RIGHT MAIN CONTENT --- */}
-      {/* Added overflow-x-hidden to prevent horizontal scroll */}
       <main className="flex-1 md:ml-64 p-4 md:p-8 w-full overflow-x-hidden">
         {/* --- MOBILE CATEGORY FILTER (New: Only shows on Mobile) --- */}
         <div className="md:hidden flex space-x-2 overflow-x-auto pb-4 scrollbar-hide mb-2">
@@ -139,7 +140,7 @@ const Home = ({ venues }) => {
                 <MapPin className="text-gray-400 min-w-[20px]" size={20} />
                 <input
                   type="text"
-                  placeholder="Search area..."
+                  placeholder="Search Name..."
                   className="flex-1 p-2 outline-none text-gray-700 placeholder-gray-400 text-sm md:text-base w-full"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
