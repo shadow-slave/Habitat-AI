@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { ShieldCheck, Mail, Lock, ArrowRight } from "lucide-react"; // Added Icons
+import { Link } from "react-router-dom";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -120,9 +121,18 @@ const Login = () => {
             </button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-2">
+            <p className="text-sm text-blue-200">
+              Don't have an account?{" "}
+              <Link
+                to="/register"
+                className="font-bold text-white hover:underline"
+              >
+                Register
+              </Link>
+            </p>
             <p className="text-xs text-blue-300/60">
-              Note: Guest login allowed for non-MSRIT users.
+              Guest login allowed for non-MSRIT users.
             </p>
           </div>
         </div>

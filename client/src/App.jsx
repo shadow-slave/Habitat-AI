@@ -12,64 +12,100 @@ import {
   LogOut,
   User,
   ShieldCheck,
-} from "lucide-react";
+  PlusSquare,
+} from "lucide-react"; // Added PlusSquare
 import Home from "./pages/Home";
 import VenueDetails from "./pages/VenueDetails";
 import Login from "./pages/Login";
-// src/App.jsx - REPLACE THE mockData CONSTANT WITH THIS:
+import Register from "./pages/Register";
+import Admin from "./pages/Admin"; // <--- Import Admin
+import SuperAdmin from "./pages/SuperAdmin";
+import { ShieldAlert } from "lucide-react"; // Import icon
+// --- HELPER FOR DISTANCE ---
+const MSRIT_LAT = 13.0306;
+const MSRIT_LNG = 77.5649;
 
-const mockData = [
+function calculateDistance(lat, lng) {
+  const R = 6371;
+  const dLat = (lat - MSRIT_LAT) * (Math.PI / 180);
+  const dLon = (lng - MSRIT_LNG) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(MSRIT_LAT * (Math.PI / 180)) *
+      Math.cos(lat * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  return (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1);
+}
+
+// --- MOCK DATA ---
+const rawVenues = [
   {
-    id: 1,
+    _id: "1",
     name: "Sai Balaji Luxury PG",
+    ownerName: "Mr. Ramesh",
     type: "PG",
-    gender: "Gents",
+    contactNo: "9876543210",
     rating: 4.2,
-    safetyScore: 4.8,
-    distance: "0.5 km",
-    price: "₹8,500/mo",
-    foodType: "Veg & Non-Veg",
-    amenities: ["High-Speed Wifi", "Power Backup", "Washing Machine", "Biometric Entry", "CCTV"],
-    contact: "+91 98765 43210",
-    image: "https://images.unsplash.com/photo-1522771753035-1a5b6562f3ba?auto=format&fit=crop&w=800",
-    aiSummary: "Pros: Very close to Gate 10. Cons: Food is repetitive and spicy.",
+    aiSummary: "Pros: Close to college. Cons: Spicy food.",
+    address: {
+      street: "4th Cross, Mathikere Extension",
+      pincode: "560054",
+      latitude: 13.0324,
+      longitude: 77.5651,
+    },
+    images: [
+      "https://images.unsplash.com/photo-1522771753035-1a5b6562f3ba?auto=format&fit=crop&w=800",
+      "https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&w=800",
+      "https://images.unsplash.com/photo-1584622050111-993a426fbf0a?auto=format&fit=crop&w=800",
+    ],
+    cost: { min: 8500, max: 12000, per: "Month" },
+    availableFoods: ["North Indian", "South Indian"],
+    availableRoomTypes: ["2BHK", "Single Room"],
+    sharingTypes: ["Double", "Triple"],
+    description:
+      "Located right behind Gate 10. Newly constructed building with biometric entry and CCTV surveillance on all floors.",
   },
   {
-    id: 2,
+    _id: "2",
     name: "Annapoorna Mess",
+    ownerName: "Mrs. Lakshmi",
     type: "Mess",
-    gender: "Unisex",
+    contactNo: "9123456780",
     rating: 3.5,
-    safetyScore: 2.9,
-    distance: "1.2 km",
-    price: "₹3,000/mo",
-    foodType: "Pure Veg",
-    amenities: ["RO Water", "Daily Cleaning", "Breakfast & Dinner"],
-    contact: "+91 91234 56789",
-    image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800",
-    aiSummary: "Pros: Cheap and unlimited rice. Cons: Hygiene issues in kitchen.",
-  },
-  {
-    id: 3,
-    name: "Zolo Stays (MSRIT)",
-    type: "PG",
-    gender: "Ladies",
-    rating: 4.7,
-    safetyScore: 4.9,
-    distance: "0.8 km",
-    price: "₹12,000/mo",
-    foodType: "North Indian",
-    amenities: ["AC Rooms", "Refrigerator", "Lift", "Security Guard", "Gym"],
-    contact: "+91 99887 77665",
-    image: "https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800",
-    aiSummary: "Pros: Extremely safe and clean. Cons: Strict curfew timings.",
+    aiSummary: "Pros: Cheap. Cons: Hygiene issues.",
+    address: {
+      street: "Main Market Road, Mathikere",
+      pincode: "560054",
+      latitude: 13.035,
+      longitude: 77.56,
+    },
+    images: [
+      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800",
+      "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800",
+      "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800",
+    ],
+    cost: { min: 3000, max: 3500, per: "Month" },
+    availableFoods: ["Andhra Style", "Pure Veg"],
+    availableRoomTypes: [],
+    sharingTypes: [],
+    description:
+      "Budget-friendly mess for students. Open for lunch and dinner only. Token system available.",
   },
 ];
-// Helper component to highlight active links
+
+const mockData = rawVenues.map((venue) => ({
+  ...venue,
+  distanceFromMSRIT: calculateDistance(
+    venue.address.latitude,
+    venue.address.longitude
+  ),
+}));
+
+// Helper Link Component
 const NavLink = ({ to, icon, label }) => {
   const location = useLocation();
   const isActive = location.pathname === to;
-
   return (
     <Link
       to={to}
@@ -87,7 +123,6 @@ const NavLink = ({ to, icon, label }) => {
 
 function App() {
   const [user, setUser] = useState(JSON.parse(localStorage.getItem("user")));
-
   const handleLogout = () => {
     localStorage.removeItem("user");
     window.location.href = "/";
@@ -96,12 +131,11 @@ function App() {
   return (
     <Router>
       <div className="font-sans text-gray-900 bg-gray-50 min-h-screen flex flex-col">
-        {/* --- PRO NAVBAR (Glassmorphism Effect) --- */}
+        {/* NAVBAR */}
         <nav className="sticky top-0 z-50 border-b border-gray-200 bg-white/80 backdrop-blur-md shadow-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16 items-center">
-              {/* 1. LOGO (Links to Home) */}
-              <Link to="/" className="flex items-center group ">
+              <Link to="/" className="flex items-center group">
                 <div className="bg-blue-600 p-1.5 rounded-lg mr-2 group-hover:scale-105 transition-transform">
                   <ShieldCheck size={20} className="text-white" />
                 </div>
@@ -115,19 +149,40 @@ function App() {
                 </div>
               </Link>
 
-              {/* 2. NAVIGATION LINKS */}
               <div className="flex items-center space-x-4">
-                {/* Dashboard Button */}
                 <NavLink
                   to="/"
                   icon={<LayoutDashboard size={18} />}
                   label="Dashboard"
                 />
 
-                {/* Vertical Divider */}
+                {/* ADMIN LINK (Added Here) */}
+                {/* STANDARD USER LINKS */}
+                <NavLink
+                  to="/admin"
+                  icon={<PlusSquare size={18} />}
+                  label="Post Property"
+                />
+
+                {/* SUPER ADMIN LINK (Only visible if email is admin@habitat.ai) */}
+                {user && user.email === "admin@habitat.ai" && (
+                  <div className="ml-2">
+                    <Link
+                      to="/super-admin"
+                      className="flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-bold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition"
+                    >
+                      <ShieldAlert size={18} />
+                      <span>Approvals</span>
+                      <span className="flex h-2 w-2 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                      </span>
+                    </Link>
+                  </div>
+                )}
+                
                 <div className="h-6 w-px bg-gray-200 mx-2"></div>
 
-                {/* Auth Section */}
                 {user ? (
                   <div className="flex items-center space-x-3 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
                     <div className="flex items-center space-x-2">
@@ -159,7 +214,6 @@ function App() {
           </div>
         </nav>
 
-        {/* --- MAIN CONTENT --- */}
         <div className="flex-1">
           <Routes>
             <Route path="/" element={<Home venues={mockData} />} />
@@ -168,6 +222,9 @@ function App() {
               element={<VenueDetails venues={mockData} />}
             />
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/admin" element={<Admin />} /> {/* REGISTER ROUTE */}
+            <Route path="/super-admin" element={<SuperAdmin />} />
           </Routes>
         </div>
       </div>

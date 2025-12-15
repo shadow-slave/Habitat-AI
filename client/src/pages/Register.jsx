@@ -16,17 +16,16 @@ import {
   Navigation,
   Layers,
   Star,
-} from "lucide-react";
+} from "lucide-react"; // <--- Make sure Star is imported
 
 const VenueDetails = ({ venues }) => {
   const { id } = useParams();
+  // Handle string IDs because Mongoose uses strings ("_id")
   const venue = venues.find((v) => v._id === id || v.id === parseInt(id));
 
   const [selectedImage, setSelectedImage] = useState(
     venue ? venue.images[0] : ""
   );
-
-  // Mock Reviews
   const [reviewsList, setReviewsList] = useState([
     {
       id: 1,
@@ -45,9 +44,8 @@ const VenueDetails = ({ venues }) => {
       date: "1 week ago",
     },
   ]);
-
   const [review, setReview] = useState("");
-  const [rating, setRating] = useState(0);
+  const [rating, setRating] = useState(0); // This tracks the star count
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -240,7 +238,6 @@ const VenueDetails = ({ venues }) => {
             <h2 className="text-xl font-bold mb-6 flex items-center text-gray-800">
               <ShieldCheck className="mr-2 text-blue-600" /> Submit Audit
             </h2>
-
             {!loggedInUser ? (
               <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-300">
                 <Lock className="text-gray-400 mx-auto mb-3" size={24} />
@@ -267,7 +264,7 @@ const VenueDetails = ({ venues }) => {
               </div>
             ) : (
               <div className="space-y-6">
-                {/* --- STAR RATING --- */}
+                {/* --- NEW STAR RATING INPUT --- */}
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">
                     Safety Rating
@@ -276,9 +273,8 @@ const VenueDetails = ({ venues }) => {
                     {[1, 2, 3, 4, 5].map((star) => (
                       <button
                         key={star}
-                        type="button"
                         onClick={() => setRating(star)}
-                        className="p-1 focus:outline-none transition-transform hover:scale-110 active:scale-95"
+                        className="focus:outline-none transition-transform hover:scale-110 active:scale-95"
                       >
                         <Star
                           size={32}
@@ -286,7 +282,7 @@ const VenueDetails = ({ venues }) => {
                             rating >= star
                               ? "fill-yellow-400 text-yellow-400"
                               : "fill-gray-100 text-gray-300"
-                          } transition-colors duration-200`}
+                          } transition-colors`}
                         />
                       </button>
                     ))}
@@ -305,6 +301,7 @@ const VenueDetails = ({ venues }) => {
                       : "Terrible"}
                   </p>
                 </div>
+
                 <textarea
                   className="w-full border p-3 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500 transition"
                   rows="3"

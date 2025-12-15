@@ -5,7 +5,6 @@ import {
   LayoutGrid,
   Coffee,
   Home as HomeIcon,
-  Search,
   MapPin,
   Filter,
   Star,
@@ -14,14 +13,22 @@ import {
 const Home = ({ venues }) => {
   const [activeTab, setActiveTab] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
-  const [minRating, setMinRating] = useState(0); // <--- NEW STATE
+  const [minRating, setMinRating] = useState(0);
 
   const filteredVenues = venues.filter((venue) => {
+    // 1. Filter by Category (PG vs Mess)
     const matchesCategory = activeTab === "All" || venue.type === activeTab;
-    const matchesSearch = venue.name
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    const matchesRating = venue.rating >= minRating; // <--- NEW LOGIC
+
+    // 2. Filter by Search (Name OR Address)
+    const searchLower = searchQuery.toLowerCase();
+    const matchesSearch =
+      venue.name.toLowerCase().includes(searchLower) ||
+      (venue.address &&
+        venue.address.street.toLowerCase().includes(searchLower));
+
+    // 3. Filter by Rating
+    const matchesRating = venue.rating >= minRating;
+
     return matchesCategory && matchesSearch && matchesRating;
   });
 
@@ -57,7 +64,7 @@ const Home = ({ venues }) => {
             </nav>
           </div>
 
-          {/* Section 2: Rating Filter (NEW) */}
+          {/* Section 2: Rating Filter */}
           <div>
             <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">
               Minimum Rating
@@ -92,19 +99,6 @@ const Home = ({ venues }) => {
             </div>
           </div>
         </div>
-
-        {/* Live Safety Stats Widget */}
-        <div className="mt-auto p-6 border-t border-gray-100">
-          <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-4 rounded-xl text-white shadow-lg shadow-blue-200">
-            <p className="text-xs font-medium opacity-80 mb-1">
-              Live Safety Index
-            </p>
-            <h3 className="text-2xl font-bold">94.2%</h3>
-            <p className="text-[10px] opacity-80 mt-1">
-              Safe Zone (MSRIT Area)
-            </p>
-          </div>
-        </div>
       </aside>
 
       {/* --- RIGHT MAIN CONTENT --- */}
@@ -125,7 +119,7 @@ const Home = ({ venues }) => {
               <MapPin className="text-gray-400 ml-3" size={20} />
               <input
                 type="text"
-                placeholder="Search by area or PG name..."
+                placeholder="Search by area (e.g. Mathikere)..."
                 className="flex-1 p-3 outline-none text-gray-700 placeholder-gray-400"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -137,7 +131,7 @@ const Home = ({ venues }) => {
           </div>
         </div>
 
-        {/* FILTER RESULTS HEADER */}
+        {/* RESULTS HEADER */}
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-gray-900 flex items-center">
             {activeTab === "All"
@@ -158,9 +152,10 @@ const Home = ({ venues }) => {
         {filteredVenues.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
             {filteredVenues.map((venue) => (
+              // FIX: Use venue._id instead of venue.id
               <Link
-                to={`/venue/${venue.id}`}
-                key={venue.id}
+                to={`/venue/${venue._id}`}
+                key={venue._id}
                 className="block group"
               >
                 <VenueCard {...venue} />
@@ -173,14 +168,15 @@ const Home = ({ venues }) => {
             <h3 className="text-lg font-bold text-gray-400">
               No matches found
             </h3>
-            <p className="text-gray-400 text-sm">
-              Try lowering the rating filter.
-            </p>
+            <p className="text-gray-400 text-sm">Try adjusting your filters.</p>
             <button
-              onClick={() => setMinRating(0)}
+              onClick={() => {
+                setMinRating(0);
+                setSearchQuery("");
+              }}
               className="mt-4 text-blue-600 font-bold text-sm hover:underline"
             >
-              Clear Filters
+              Clear All Filters
             </button>
           </div>
         )}
@@ -189,7 +185,7 @@ const Home = ({ venues }) => {
   );
 };
 
-// Sidebar Helper Component (Same as before)
+// Sidebar Helper (Unchanged)
 const SidebarItem = ({ icon, label, isActive, onClick }) => (
   <button
     onClick={onClick}
