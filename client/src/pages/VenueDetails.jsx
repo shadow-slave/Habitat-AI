@@ -516,12 +516,17 @@ const VenueDetails = () => {
                       <div>
                         <h4 className="font-bold text-gray-900 flex items-center">
                           {rev.userId?.name || "Student"}
-                          {rev.userId?.email?.includes("msrit") && (
+                          {rev.userId?.email
+                            ?.toLowerCase()
+                            .includes("msrit") && (
                             <BadgeCheck
                               size={16}
                               className="text-blue-600 ml-1"
                             />
                           )}
+                          {
+                            console.log("email check:", rev.userId?.email)
+                          }
                         </h4>
                         {/* --- FIXED DATE FORMAT --- */}
                         <p className="text-xs text-gray-400 flex items-center mt-1">

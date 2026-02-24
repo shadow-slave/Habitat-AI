@@ -282,7 +282,7 @@ router.get("/:id", async (req, res, next) => {
 
 
     const reviews = await Review.find({ venueId: id })
-        .populate("userId", "name")
+        .populate("userId", "name email")
         .sort({ createdAt: -1 })
 
     let positive = 0
